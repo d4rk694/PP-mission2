@@ -1,5 +1,7 @@
 require 'singleton'
-
+def adapt_classes(klass)
+	puts klass
+end
 Dir["#{File.dirname(__FILE__)}/../text_correctness_app/features/*.rb"].each { |file| require file }
 Dir["#{File.dirname(__FILE__)}/../text_correctness_app/skeleton/*.rb"].each { |file| require file }
 
