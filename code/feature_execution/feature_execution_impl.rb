@@ -10,12 +10,13 @@ Dir["#{File.dirname(__FILE__)}/../text_correctness_app/features/*.rb"].each {|fi
 Dir["#{File.dirname(__FILE__)}/../text_correctness_app/skeleton/*.rb"].each {|file| require file}
 
 
-def proceed
-  puts "memory == #{FeatureExecutionImpl.instance.memory}"
-  puts
-  FeatureExecutionImpl.instance.next_op(self, caller_locations(1,1)[0].label)
+class Object
+  def proceed
+    puts "memory == #{FeatureExecutionImpl.instance.memory}"
+    puts
+    FeatureExecutionImpl.instance.next_op(self, caller_locations(1, 1)[0].label)
+  end
 end
-
 
 
 class FeatureExecutionImpl
