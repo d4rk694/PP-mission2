@@ -8,7 +8,7 @@ class FeatureSelector
 		@klass = klass
 	end
 
-	def to_s()
+	def to_s
 		"#{@feature} - #{@klass}"
 	end
 
