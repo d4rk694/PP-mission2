@@ -22,17 +22,12 @@ class FeatureExecutionImpl
 
 	# TODO To be completed if needed
 	def adapt(feature_selector)
-		puts feature_selector.to_s()
 		moduleObj = Object.const_get(feature_selector.feature)
-		puts moduleObj
 		classObj = Object.const_get(feature_selector.klass)
-		puts classObj
-		methodesNamesArray = moduleObj.instance_methods
-		puts
-		methodesNamesArray.each do |item|
-			puts item
-			methodeObj = moduleObj.instance_method(item)
-			classObj.send(:define_method, item, methodeObj )
+		methods_names_array = moduleObj.instance_methods
+		methods_names_array.each do |item|
+			methodObj = moduleObj.instance_method(item)
+			classObj.send(:define_method, item, methodObj )
 		end
 	end
 end
