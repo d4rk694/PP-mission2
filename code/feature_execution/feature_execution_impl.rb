@@ -9,6 +9,12 @@ end
 Dir["#{File.dirname(__FILE__)}/../text_correctness_app/features/*.rb"].each { |file| require file }
 Dir["#{File.dirname(__FILE__)}/../text_correctness_app/skeleton/*.rb"].each { |file| require file }
 
+
+def proceed
+  puts "self == #{self}"
+  self.text
+end
+
 class FeatureExecutionImpl
 
 	include Singleton
@@ -16,11 +22,22 @@ class FeatureExecutionImpl
 	def alter(action, feature_selector)
 		if action == :adapt
 			adapt(feature_selector)
+    elsif action == :unadapt
+      unadapt(feature_selector)
 		end
 		# TODO To be completed
 	end
 
-	# TODO To be completed if needed
+  def unadapt(feature_selector)
+    module_obj = Object.const_get(feature_selector.feature)
+    class_obj = Object.const_get(feature_selector.klass)
+    methods_names_array = module_obj.instance_methods
+    methods_names_array.each do |item|
+      class_obj.send(:remove_method, item )
+    end
+  end
+
+  # TODO To be completed if needed
 	def adapt(feature_selector)
 		module_obj = Object.const_get(feature_selector.feature)
 		class_obj = Object.const_get(feature_selector.klass)
