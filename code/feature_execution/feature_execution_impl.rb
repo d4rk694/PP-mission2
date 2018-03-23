@@ -12,8 +12,8 @@ Dir["#{File.dirname(__FILE__)}/../text_correctness_app/skeleton/*.rb"].each {|fi
 
 class Object
   def proceed
-    puts "memory == #{FeatureExecutionImpl.instance.memory}"
-    puts
+    # puts "memory == #{FeatureExecutionImpl.instance.memory}"
+    # puts
     FeatureExecutionImpl.instance.next_op(self, caller_locations(1, 1)[0].label)
   end
 end
@@ -89,8 +89,6 @@ class FeatureExecutionImpl
   end
 
 
-
-
   def unadapt(feature_selector)
 
     # variables
@@ -126,15 +124,12 @@ class FeatureExecutionImpl
     # variables
     klass = sself.class.name
     meth = called_from
-    # puts "#{klass} - #{meth}"
+    puts "#{klass} -> #{meth}"
 
     # copy the memory at first call
     unless @stack_op == nil
       @stack_op = @memory.clone
     end
-
-    # puts "stack => #{@stack_op}"
-    # puts "stack methods => #{@stack_op[klass][meth]}"
 
     #get the method that have to be called, based on the class and method calling
     meth_to_call = @stack_op[klass][meth].pop()
@@ -144,22 +139,18 @@ class FeatureExecutionImpl
       @stack_op[klass][meth] = @memory[klass][meth].clone
     end
 
-
-    # puts "method => #{meth_to_call}"
-
-
     to_return = sself.text
-=begin
+
     #TODO change
 
-    klass_Obj = Object.const_get(klass)
-
-    meth_to_call.each do |key, value|
-      klass_un = klass_Obj.instance_method(meth)
-
-      to_return = klass_un.bind(value).call()
+    if meth_to_call
+      meth_to_call.each do |key, value|
+        puts "#{klass} - #{meth}"
+        puts "#{@memory}"
+        to_return = value.bind(sself).call()
+      end
     end
-=end
+
     to_return
   end
 end
