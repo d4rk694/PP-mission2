@@ -1,34 +1,76 @@
 require 'singleton'
 
-# classes = []
-
-def adapt_classes(klass)
-
+def adapt_classes klass
+  # puts klass
+  klass
 end
+
+def proceed
+
+  # variable
+  meth = caller.first[/`(.*)'/, 1]
+  klass = self.class.name
+
+  string = "#{caller.first[/.+\/(.+).rb/]}"
+  mod = string.match(/.+\/(.+).rb/).captures # the module name is at mod.first
+  mod = mod.first
+  mod[0] = mod[0].upcase
+
+  #puts "proceed => mod: #{mod}, class : #{klass}, meth : #{meth}"
+
+  meth_un = recover_meth_from_memory(mod, klass, meth)
+
+  to_return = meth_un.bind(self).call()
+
+  to_return
+end
+
+def recover_meth_from_memory(mod, klass, meth)
+  memory = FeatureExecutionImpl.instance.getMemory()
+  last = FeatureExecutionImpl.instance.getLastFeat()
+
+  #puts "#{memory}"
+  methods = memory[klass][meth]
+
+  meth_un = nil
+  if last[klass][meth] == mod
+    meth_un = memory[klass][meth].last
+  else
+    index = -1
+    cpt = 0
+    methods.each do |method_item|
+      if method_item[0] == mod
+        index = cpt -1
+      end
+      cpt = cpt + 1
+    end
+    meth_un = memory[klass][meth][index]
+  end
+
+  meth_un[1]
+end
+
 
 Dir["#{File.dirname(__FILE__)}/../text_correctness_app/features/*.rb"].each {|file| require file}
 Dir["#{File.dirname(__FILE__)}/../text_correctness_app/skeleton/*.rb"].each {|file| require file}
 
-
-class Object
-  def proceed
-    # puts "memory == #{FeatureExecutionImpl.instance.memory}"
-    # puts
-    FeatureExecutionImpl.instance.next_op(self, caller_locations(1, 1)[0].label)
-  end
-end
-
-
 class FeatureExecutionImpl
+
+  attr_reader :memory, :last_feature
 
   include Singleton
 
-  attr_reader :memory, :last_feature, :stack_op
+  def getMemory
+    @memory
+  end
+
+  def getLastFeat
+    @last_feature
+  end
 
   def initialize
     @memory = Hash.new
     @last_feature = Hash.new
-    @stack_op = Array.new
   end
 
   def alter(action, feature_selector)
@@ -37,26 +79,23 @@ class FeatureExecutionImpl
     elsif action == :unadapt
       unadapt(feature_selector)
     end
-    # TODO To be completed
   end
 
-  # TODO To be completed if needed
-  #
   def adapt(feature_selector)
-    # puts "cpt = #{@cpt}"
-    #variables
+    # puts "adapt : #{feature_selector.feature}"
+    # recover object for the module/class/methodes name
     module_obj = Object.const_get(feature_selector.feature)
     class_obj = Object.const_get(feature_selector.klass)
     methods_names_array = module_obj.instance_methods
 
-    # check if the klass has been saved
-    unless @memory[feature_selector.klass]
-      puts "\tCreate new hash for #{feature_selector.klass}"
+    # Check if the klass has been saved
+    if @memory[feature_selector.klass].nil?
       # puts "create #{feature_selector.klass}"
       @memory[feature_selector.klass] = Hash.new
+
+      @last_feature[feature_selector.klass] = Hash.new
     end
 
-    # foreach methods in the module
     methods_names_array.each do |method_item|
 
       # test if the method exists in the class
@@ -74,83 +113,98 @@ class FeatureExecutionImpl
           @memory[feature_selector.klass]["#{method_item}"] = []
         end
         # save the old method
-        @memory[feature_selector.klass]["#{method_item}"].push({"#{@last_feature[feature_selector.klass]}" => old_method})
+        @memory[feature_selector.klass]["#{method_item}"].push(
+            ["#{@last_feature[feature_selector.klass]["#{method_item}"]}", old_method]
+        )
       end
 
-      # add the method to the class
-      method_obj = module_obj.instance_method(method_item)
-      class_obj.send(:define_method, method_item, method_obj)
+      add_method_to_class(module_obj, class_obj, method_item)
+      @last_feature[feature_selector.klass]["#{method_item}"] = feature_selector.feature
+
     end
 
-    # remember the last feature added for the klass
-    @last_feature[feature_selector.klass] = feature_selector.feature
+    # puts "Last => #{@last_feature}"
+    # puts "Mem => #{@memory}"
 
-    # puts "Alter => #{@memory}"
   end
 
-
   def unadapt(feature_selector)
-
+    # puts "unadapt"
     # variables
     module_obj = Object.const_get(feature_selector.feature)
     class_obj = Object.const_get(feature_selector.klass)
+
     methods_names_array = module_obj.instance_methods
 
-    # foreach methods of the module
     methods_names_array.each do |method_item|
 
-      method_obj = module_obj.instance_method(method_item)
-
-      if @last_feature[feature_selector.klass] == feature_selector.feature
-        # remove the methode from the class
+      if @last_feature[feature_selector.klass]["#{method_item}"] == feature_selector.feature
+        # puts "pop  #{method_item} ..."
+        # remove the method
         class_obj.send(:remove_method, method_item)
-
-        # if there is a method in the history, define it in the class
-        if @memory[feature_selector.klass] && @memory[feature_selector.klass]["#{method_item}"]
-          method_old = @memory[feature_selector.klass]["#{method_item}"].pop()
-          if method_old
-            method_old.each do |key, value|
-              class_obj.send(:define_method, method_item, value)
-              @last_feature[feature_selector.klass] = key
-            end
+        unless @memory[feature_selector.klass]["#{method_item}"].nil?
+          meth_un = @memory[feature_selector.klass]["#{method_item}"].pop()
+          unless meth_un.nil?
+            class_obj.send(:define_method, method_item, meth_un[1])
+            @last_feature[feature_selector.klass]["#{method_item}"] = meth_un[0]
           end
+
+          if @memory[feature_selector.klass]["#{method_item}"].empty?
+            memory[feature_selector.klass].delete("#{method_item}")
+          end
+        else
+          @last_feature[feature_selector.klass].delete("#{method_item}")
+        end
+
+      else
+        unless @memory[feature_selector.klass]["#{method_item}"].empty?
+          index = -1
+          cpt = 0;
+          @memory[feature_selector.klass]["#{method_item}"].each do |method_item|
+            if method_item[0] == feature_selector.feature
+              index = cpt
+              break
+            end
+            cpt = cpt + 1
+          end
+          if index > 0
+            # puts "removing #{method_item} ...  at index #{index}"
+            @memory[feature_selector.klass]["#{method_item}"].delete_at(index)
+          end
+          puts index
         end
       end
+
+
     end
+
+
+    # puts "Last => #{@last_feature}"
+    # puts "Mem => #{@memory}"
   end
 
-  def next_op(sself, called_from)
+  ######################################################################
+  ############################## UTILS #################################
+  ######################################################################
 
-    # variables
-    klass = sself.class.name
-    meth = called_from
-    puts "#{klass} -> #{meth}"
+  def add_method_to_class(module_obj, class_obj, method_item)
 
-    # copy the memory at first call
-    unless @stack_op == nil
-      @stack_op = @memory.clone
-    end
-
-    #get the method that have to be called, based on the class and method calling
-    meth_to_call = @stack_op[klass][meth].pop()
-
-    # if after a pop the history of the method is empty, we update the memory
-    if @stack_op[klass][meth].empty?
-      @stack_op[klass][meth] = @memory[klass][meth].clone
-    end
-
-    to_return = sself.text
-
-    #TODO change
-
-    if meth_to_call
-      meth_to_call.each do |key, value|
-        puts "#{klass} - #{meth}"
-        puts "#{@memory}"
-        to_return = value.bind(sself).call()
-      end
-    end
-
-    to_return
+    method_obj = module_obj.instance_method(method_item)
+    # puts "methObj => #{method_obj}"
+    class_obj.send(:define_method, method_item, method_obj)
+    # puts "ClassObj => #{class_obj}"
   end
+
+  def remove_method_from_class(module_obj, class_obj)
+    methods_names_array = module_obj.instance_methods
+
+    methods_names_array.each do |method_item|
+      # remove the method
+      class_obj.send(:remove_method, method_item)
+    end
+
+  end
+
+  # TODO To be completed if needed
+
 end
